@@ -1,0 +1,29 @@
+{%- for hostname, node_ip in nodes.items() -%}
+{{ hostname }}		ansible_ssh_host={{ node_ip}}
+{% endfor %}
+
+[kube-master]
+{% for hostname in nodes %}
+{%- if hostname.startswith('master') -%}
+{{hostname}}
+{% endif %}
+{%- endfor %}
+
+[kube-node]
+{% for hostname in nodes %}
+{%- if hostname.startswith('worker') -%}
+{{hostname}}
+{% endif %}
+{%- endfor %}
+
+[etcd:children]
+kube-master
+
+[k8s-cluster:children]
+kube-node
+kube-master
+
+[k8s-cluster:vars]
+ansible_become=true
+ansible_ssh_common_args="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+initiator_name={{initiator_name}}

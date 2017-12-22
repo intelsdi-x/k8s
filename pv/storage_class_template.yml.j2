@@ -1,0 +1,13 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: {{storage_class_type}}
+provisioner: nutanix/abs
+parameters:
+  prismEndPoint: {{config.prism}}
+  dataServiceEndPoint: {{config.data_service_endpoint}}
+  user: {{config.user}}
+  password: {{config.password}}
+  storageContainer: {{config.storage_container}}
+  fsType: {{config.filesystem}}
+  defaultIqn: {{config.iqn}}

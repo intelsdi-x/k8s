@@ -12,3 +12,14 @@ worker:
   number_of_nodes: 3    #Number of nodes for worker group
   number_of_vcpu: 2     #Number of Virtual Processors used for single VM in worker group
   ram_size: 4           #GB of RAM used for single VM in worker group
+persistent_storage:
+  iqn: iqn.1994-05.com.nutanix:k8s-worker
+  data_service_endpoint: 1.6.4.1:3260
+  silver:
+    enabled: true
+    storage_container_name: k8s_silver
+    filesystem: ext4
+  gold:
+    enabled: true
+    storage_container_name: k8s_gold
+    filesystem: ext4

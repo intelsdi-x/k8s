@@ -16,7 +16,7 @@
 #Variables for directory structure
 set -e
 BASE_DIR=$(pwd)
-KUBESPRAY_COMMIT="7ed140c"
+KUBESPRAY_COMMIT="ffbdf31"
 PYTON_SCRIPTS="nutanix_scripts"
 VIRTUALENV_PATH=".env"
 REQUIREMENTS="requirements.txt"
@@ -112,5 +112,10 @@ get_and_set_kubespray
 #Run VMs preparation script (Create/Fetch VMs, Images, Networks and configure them)
 python $PYTON_SCRIPTS/prepare_kubernetes_env.py
 
+ansible-playbook -i inventory --flush-cache -u $user custom_actions.yml
+
 #Install Kubernetes on prepared clusters' inventory
 ansible-playbook -i inventory $KUBESPRAY_DIR/cluster.yml --flush-cache -u $user -e cluster_name="$k8s_cluster" -e kube_network_plugin="flannel" -e bootstrap_os="centos" -e kube_basic_auth="true" -e dashboard_enabled="true" -e kubeconfig_localhost="true" -e kubectl_localhost="true"
+
+chmod +x .kubespray/artifacts/kubectl
+.kubespray/artifacts/kubectl --kubeconfig .kubespray/artifacts/admin.conf create -f pv

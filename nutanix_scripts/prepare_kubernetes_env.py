@@ -18,6 +18,7 @@ import os
 import time
 
 import yaml
+import jinja2
 
 from nutanix_scripts.api import Nutanix
 from nutanix_scripts.exceptions import ConfigurationError, MissingKeys
@@ -34,16 +35,6 @@ BASE_VM_DISK = 10
 
 # Configuration and "templating" for ansible inventory.
 INVENTORY_FILE = 'inventory'
-INVENTORY_CONST = [
-    '\n[etcd:children]',
-    'kube-master',
-    '\n[k8s-cluster:children]',
-    'kube-node',
-    'kube-master',
-    '\n[k8s-cluster:vars]',
-    'ansible_become=true',
-    'ansible_ssh_common_args="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"'
-]
 
 # Names of config files for clusters and virtual environments for installer.
 K8S_CONFIG = 'configs/k8s_cluster.yml'
@@ -173,6 +164,50 @@ def get_kubernetes_config(config_path):
         return common_config, master_config, worker_config
 
 
+def get_persistent_volumes_config(config_path):
+    """Open kubernetes cluster configuration file and load peristent volumes content.
+    Return dictionary with information needed to generate storage classes files.
+
+    :param str config_path: path to config file, default **k8s_cluster.yml**
+    :return: Dictionary with information needed to generate storage classes.
+    :rtype: dict
+    :raises IOError: when file doesn't exist, or path is incorrect.
+    :raises ParseError: when file is not valid yml file.
+    :raises ConfigurationError: when configuration file is incorrect.
+
+    """
+    logger.info('Reading cluster configuration from %s', config_path)
+    with open(config_path) as conf_file:
+        data = yaml.safe_load(conf_file)
+
+    try:
+        persistent_volumes_config = data['persistent_storage']
+    except KeyError:
+        raise ConfigurationError(ConfigurationError.MISSING_SECTION.format('persistent_storage'))
+
+    try:
+        config = {
+            'silver': {
+                'enabled': persistent_volumes_config['silver']['enabled'],
+                'filesystem': persistent_volumes_config['silver']['filesystem'],
+                'storage_container': persistent_volumes_config['silver']['storage_container_name'],
+                'iqn': persistent_volumes_config['iqn'],
+                'data_service_endpoint': persistent_volumes_config['data_service_endpoint']
+            },
+            'gold': {
+                'enabled': persistent_volumes_config['gold']['enabled'],
+                'filesystem': persistent_volumes_config['gold']['filesystem'],
+                'storage_container': persistent_volumes_config['gold']['storage_container_name'],
+                'iqn': persistent_volumes_config['iqn'],
+                'data_service_endpoint': persistent_volumes_config['data_service_endpoint']
+            }
+        }
+    except KeyError as error:
+        raise ConfigurationError(ConfigurationError.MISSING_FIELD.format(error))
+    else:
+        return config
+
+
 def prepare_env():
     """This function implements main logic of preparation Virtual machines
     for Kubernetes installation:
@@ -267,32 +302,41 @@ def prepare_env():
         time.sleep(Nutanix.SLEEP_TIME)
         vms_with_ips = nutanix.get_vms_property(k8s_cluster_name, 'ipAddresses')
 
+    logger.info('Generate pv manifests')
+    iqn = ''  #we will need it for inventory
+    pv_configs = get_persistent_volumes_config(os.path.abspath(K8S_CONFIG))
+    for storage_class_type, config in pv_configs.items():
+        if not config['enabled']:
+            logger.info(
+                '{} storage class is not enabled. Skipping k8s configuration for it'.format(
+                    storage_class_type.capitalize()
+                )
+            )
+            continue
+        config['user'] = nutanix.user
+        config['password'] = nutanix.password
+        config['prism'] = nutanix.prism
+        iqn = config['iqn']
+
+        with open('pv/storage_class_template.yml.j2') as template_file:
+            template = jinja2.Template(template_file.read())
+        with open('pv/{}_storage_class.yml'.format(storage_class_type), 'w+') as storage_class_manifest:
+            storage_class_manifest.write(template.render(config=config, storage_class_type=storage_class_type))
+
     logger.info('Generate ansible inventory')
-    inventory_lines = [
-        '{}    ansible_ssh_host={}'.format(
-            name, node_ips[0]
-        ) for name, node_ips in vms_with_ips.iteritems()
-        ]
 
-    inventory_lines.append('\n[kube-master]')
-    inventory_lines.extend(
-        [name for name in vms_with_ips if name.startswith('master')]
-    )
+    with open('inventory.j2') as template_file:
+        template = jinja2.Template(template_file.read())
 
-    inventory_lines.append('\n[kube-node]')
-    inventory_lines.extend(
-        [name for name in vms_with_ips if name.startswith('worker')]
-    )
-
-    inventory_lines.extend(INVENTORY_CONST)
+    vms_ips = {node: node_ips[0] for node, node_ips in vms_with_ips.iteritems()}
 
     with open(INVENTORY_FILE, 'w') as inventory:
-        inventory.write('\n'.join(inventory_lines))
+        inventory.write(template.render(nodes=vms_ips, initiator_name=iqn))
 
     with open(INVENTORY_FILE, 'r') as inventory:
         logger.debug('Created inventory file:\n%s', inventory.read())
 
-    logger.info('Inventory successfully generated. Moving to Kargo part.')
+    logger.info('Inventory successfully generated. Moving to Ansible part.')
 
 
 if __name__ == "__main__":

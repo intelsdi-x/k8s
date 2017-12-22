@@ -1,0 +1,31 @@
+- hosts: k8s-cluster
+  gather_facts: no
+  tasks:
+  - name: Wait up to 30 seconds for port 22 to become open and contain "OpenSSH"
+    wait_for:
+      port: 22
+      host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+      search_regex: OpenSSH
+      delay: 5
+      sleep: 5
+      timeout: 30
+    connection: local
+
+- hosts: kube-node
+  tasks:
+  - name: Install iscsi initiator
+    package:
+      name: iscsi-initiator-utils
+      state: latest
+    when: initiator_name != ""
+  - name: Set iscsi initiator name
+    replace:
+      path: /etc/iscsi/initiatorname.iscsi
+      regexp: 'InitiatorName=.*'
+      replace: 'InitiatorName={{initiator_name}}'
+    when: initiator_name != ""
+  - name: Start iscsid service
+    service:
+      name: iscsid
+      state: started
+      enabled: yes

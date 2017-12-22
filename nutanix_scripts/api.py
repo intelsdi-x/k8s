@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Module containing wrapper classes for Nutanix API"""
+import base64
 import getpass
 import httplib
 import json
@@ -339,6 +340,14 @@ class Nutanix(object):
             )
 
         self.api = NutanixApi(**kwargs)
+        self.user = kwargs['credentials']['j_username']
+        self.password = kwargs['credentials']['j_password']
+        self.prism = '{}:{}'.format(
+            config[self.ADDRESS], config[self.PORT]
+        )
+        self.encoded_credentials = base64.b64encode(
+            '{j_username}:{j_password}'.format(**kwargs['credentials'])
+        )
 
     @property
     def cluster(self):

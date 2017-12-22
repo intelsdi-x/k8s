@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nutanixabs-provisioner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: nutanixabs-provisioner
+    spec:
+      serviceAccount: nutanixabs-provisioner
+      hostNetwork: true
+      containers:
+        -
+          image: "ntnx/nutanixabs-provisioner"
+          name: nutanixabs-provisioner
+          args: ["--v=4"]
