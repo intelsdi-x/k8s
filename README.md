@@ -1,11 +1,11 @@
 # Kubernetes installation tools for Nutanix.
-Automation scripts for [Kubernetes](https://github.com/kubernetes/kubernetes) cluster deployment on Virtual Machines on [Nutanix cluster](https://www.nutanix.com).
+Automation scripts for [Kubernetes](https://github.com/kubernetes/kubernetes) cluster with persistent storage deployment on Virtual Machines on [Nutanix cluster](https://www.nutanix.com).
 Under the hood it's using [Nutanix API](http://developer.nutanix.com/reference/v2/) for vm creation 
 and [Kubespray](https://github.com/kubernetes-incubator/kubespray) for [Kubernetes](https://github.com/kubernetes/kubernetes) deployment.
 
 ## Getting Started
 Installer consists of modules preparing Virtual Machines for [Kubernetes](https://github.com/kubernetes/kubernetes) cluster 
-and generating ansible inventory for [Kubespray](https://github.com/kubernetes-incubator/kubespray).
+and generating ansible inventory for [Kubespray](https://github.com/kubernetes-incubator/kubespray) and storage class manifests.
 
 ### Prerequisites
 * [Nutanix cluster](https://www.nutanix.com)
@@ -82,6 +82,17 @@ worker:
   number_of_nodes: 3
   number_of_vcpu: 2
   ram_size: 4
+persistent_storage:
+  iqn: iqn.1994-05.com.nutanix:k8s-worker
+  data_service_endpoint: 1.6.4.1:3260
+  silver:
+    enabled: true
+    storage_container_name: k8s_silver
+    filesystem: ext4
+  gold:
+    enabled: true
+    storage_container_name: k8s_gold
+    filesystem: ext4
 ```
 Variables :
 
@@ -100,6 +111,21 @@ Variables :
 `number_of_vcpu`: number of cores per vm for [Kubernetes](https://github.com/kubernetes/kubernetes) `master` or `worker` plane
 
 `ram_size`: size of RAM per vm for [Kubernetes](https://github.com/kubernetes/kubernetes) `master` or `worker` plane
+
+Storage specific:
+
+`ign`: iSCSI initiator name which will be configured on [Kubernetes](https://github.com/kubernetes/kubernetes) worker nodes.
+
+`data_service_endpoint`: [Nutanix cluster](https://www.nutanix.com) iSCSI data service IP (It can be set/check in `Cluster Details` menu).
+
+At this moment Nutanix Kubernetes storage plugin supports only 2 names for storage classes `silver` and `gold` so they shouldn't be edited.
+
+`enabled`: do we want to create given storage class.
+
+`storage_container_name`: [Nutanix cluster](https://www.nutanix.com) storage container name which should be used for given storage class. It should be created manually by [Nutanix cluster](https://www.nutanix.com) cluster operator.
+
+`filesystem`: filesystem that will be used with given storage class.
+
 
 ## Deployment
 With all requirements met, deployment is executed by following commands :
@@ -145,6 +171,3 @@ Detailed logs of creating vms by default can be found in `/tmp/k8s_installer.log
 
 ## License
 This project is licensed under Apache v.2 License - see the [LICENSE.md](LICENSE.md) file for details.
-
-## Roadmap
-* Add support for Nutanix Persistent Volumes
